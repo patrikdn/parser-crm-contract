@@ -1,0 +1,417 @@
+openapi: 3.0.3
+
+info:
+  title: Parser-CRM Integration API
+  description: |
+    API contract for synchronizing organization data from Yandex Maps Parser to CRM system.
+
+    ## Overview
+    This specification defines the contract for automated data synchronization between
+    Parser (source) and CRM (destination). Parser sends enriched organization data
+    to CRM via REST API every 5 minutes using Celery Beat.
+
+    ## Data Flow
+    1. Parser enriches organizations (Stage2 parsing)
+    2. PostgreSQL trigger adds to sync queue
+    3. Celery Beat processes queue periodically
+    4. Data validated against this contract
+    5. POST request to CRM API
+    6. CRM validates and stores data
+
+    ## Validation
+    Both systems MUST validate data against this contract:
+    - **Parser**: Validates outgoing data before sending
+    - **CRM**: Validates incoming data before storing
+
+    ## Versioning
+    - **Current Version**: 1.0.0
+    - **Versioning Scheme**: Semantic Versioning (MAJOR.MINOR.PATCH)
+    - **Breaking Changes**: MAJOR version increment
+    - **New Features**: MINOR version increment
+    - **Bug Fixes**: PATCH version increment
+
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: dp@example.com
+  license:
+    name: TBD
+    url: https://example.com/license
+
+servers:
+  - url: https://crm.example.com/api
+    description: Production CRM server
+  - url: http://localhost:8000/api
+    description: Local development server
+
+tags:
+  - name: Integration
+    description: Parser to CRM data synchronization endpoints
+
+paths:
+  /integration/parser/organizations:
+    post:
+      summary: Import organization from Parser
+      description: |
+        Creates or updates organization in CRM database using external_id for idempotency.
+
+        **Idempotency:**
+        - If external_id exists: UPDATE existing record
+        - If external_id doesn't exist: CREATE new record
+
+        **Response Operations:**
+        - `created`: New organization created
+        - `updated`: Existing organization updated
+        - `skipped`: No changes needed (data identical)
+
+      operationId: importOrganization
+      tags:
+        - Integration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Organization'
+            examples:
+              fullOrganization:
+                summary: Complete organization with all fields
+                value:
+                  external_id: "01934c8e-7890-7abc-def0-123456789012"
+                  name: "Кафе Пушкин"
+                  category: "Кафе"
+                  address: "Москва, Тверской бульвар, 26А"
+                  district_id: 5
+                  phones:
+                    - "+7 495 123-45-67"
+                    - "+7 495 765-43-21"
+                  emails:
+                    - "info@cafe-pushkin.ru"
+                    - "reservations@cafe-pushkin.ru"
+                  website: "https://cafe-pushkin.ru"
+                  social_media:
+                    instagram: "https://instagram.com/cafepushkin"
+                    vk: "https://vk.com/cafepushkin"
+                    facebook: "https://facebook.com/cafepushkin"
+                  yandex_url: "https://yandex.ru/maps/org/123456"
+                  rating: 4.7
+                  review_count: 342
+                  description: "Легендарное кафе в центре Москвы с русской кухней"
+                  working_hours: "Пн-Вс: 09:00-23:00"
+                  partnership_status: "partner"
+                  last_synced_at: "2025-11-11T12:34:56Z"
+              minimalOrganization:
+                summary: Minimal required fields only
+                value:
+                  external_id: "01934c8e-7890-7abc-def0-123456789012"
+                  name: "Кафе Пушкин"
+                  category: "Кафе"
+      responses:
+        '200':
+          description: Organization successfully imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResponse'
+              examples:
+                created:
+                  summary: New organization created
+                  value:
+                    status: "success"
+                    operation: "created"
+                    organization_id: 123
+                    external_id: "01934c8e-7890-7abc-def0-123456789012"
+                updated:
+                  summary: Existing organization updated
+                  value:
+                    status: "success"
+                    operation: "updated"
+                    organization_id: 123
+                    external_id: "01934c8e-7890-7abc-def0-123456789012"
+                skipped:
+                  summary: No changes needed
+                  value:
+                    status: "success"
+                    operation: "skipped"
+                    organization_id: 123
+                    external_id: "01934c8e-7890-7abc-def0-123456789012"
+        '400':
+          description: Bad request (malformed JSON)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                detail: "Invalid JSON format"
+        '422':
+          description: Validation error (contract violation)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                detail:
+                  - loc: ["body", "external_id"]
+                    msg: "field required"
+                    type: "value_error.missing"
+                  - loc: ["body", "phones", 0]
+                    msg: "invalid phone number format"
+                    type: "value_error.str.regex"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                detail: "Internal server error"
+
+components:
+  schemas:
+    Organization:
+      type: object
+      required:
+        - external_id
+        - name
+        - category
+      properties:
+        external_id:
+          type: string
+          format: uuid
+          description: |
+            UUID v7 (time-ordered) generated by Parser.
+            Used for idempotent create-or-update operations.
+            MUST be unique across all organizations.
+          example: "01934c8e-7890-7abc-def0-123456789012"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Organization name from Yandex Maps
+          example: "Кафе Пушкин"
+        category:
+          type: string
+          maxLength: 100
+          description: Business category (e.g., Кафе, Ресторан, Магазин)
+          example: "Кафе"
+        address:
+          type: string
+          maxLength: 1000
+          description: Full address including city
+          example: "Москва, Тверской бульвар, 26А"
+          nullable: true
+        district_id:
+          type: integer
+          description: Moscow district ID (reference to districts table)
+          example: 5
+          nullable: true
+        phones:
+          type: array
+          description: Array of phone numbers
+          items:
+            type: string
+            pattern: '^(\+7|8)[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}$'
+            example: "+7 495 123-45-67"
+          maxItems: 10
+          nullable: true
+        emails:
+          type: array
+          description: Array of email addresses
+          items:
+            type: string
+            format: email
+            example: "info@cafe-pushkin.ru"
+          maxItems: 10
+          nullable: true
+        website:
+          type: string
+          format: uri
+          maxLength: 500
+          description: Organization website URL
+          example: "https://cafe-pushkin.ru"
+          nullable: true
+        social_media:
+          type: object
+          description: Social media links
+          properties:
+            vk:
+              type: string
+              format: uri
+              description: VKontakte profile URL
+              example: "https://vk.com/cafepushkin"
+            instagram:
+              type: string
+              format: uri
+              description: Instagram profile URL
+              example: "https://instagram.com/cafepushkin"
+            facebook:
+              type: string
+              format: uri
+              description: Facebook page URL
+              example: "https://facebook.com/cafepushkin"
+            telegram:
+              type: string
+              format: uri
+              description: Telegram channel URL
+              example: "https://t.me/cafepushkin"
+            youtube:
+              type: string
+              format: uri
+              description: YouTube channel URL
+              example: "https://youtube.com/cafepushkin"
+            twitter:
+              type: string
+              format: uri
+              description: Twitter profile URL
+              example: "https://twitter.com/cafepushkin"
+          additionalProperties: false
+          nullable: true
+        yandex_url:
+          type: string
+          format: uri
+          maxLength: 500
+          description: Yandex Maps organization page URL
+          example: "https://yandex.ru/maps/org/123456"
+          nullable: true
+        rating:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 5
+          description: Organization rating from Yandex Maps (0.0 to 5.0)
+          example: 4.7
+          nullable: true
+        review_count:
+          type: integer
+          minimum: 0
+          description: Number of reviews on Yandex Maps
+          example: 342
+          nullable: true
+        description:
+          type: string
+          maxLength: 5000
+          description: Full organization description from Yandex Maps
+          example: "Легендарное кафе в центре Москвы с русской кухней"
+          nullable: true
+        working_hours:
+          type: string
+          maxLength: 500
+          description: Working hours text
+          example: "Пн-Вс: 09:00-23:00"
+          nullable: true
+        partnership_status:
+          type: string
+          enum:
+            - partner                    # Партнер
+            - potential_partner          # Потенциальный партнер
+            - previously_cooperated      # Ранее сотрудничали
+            - low_cost                   # Лоу Кост
+            - high_cost                  # Хай Кост
+            - not_interested             # Не заинтересованы
+            - gov_schools_gardens        # Гос. школы и сады
+            - gov_children_centers       # Гос. детские центры
+          description: |
+            Partnership status from Parser.
+
+            Values:
+            - **partner**: Active partner
+            - **potential_partner**: Potential partner (default for Stage2 enriched)
+            - **previously_cooperated**: Previously cooperated
+            - **low_cost**: Low-cost segment
+            - **high_cost**: High-cost segment
+            - **not_interested**: Not interested in partnership
+            - **gov_schools_gardens**: Government schools and kindergartens
+            - **gov_children_centers**: Government children's centers
+          example: "partner"
+          nullable: true
+        last_synced_at:
+          type: string
+          format: date-time
+          description: |
+            Timestamp when Parser last synced this organization.
+            ISO 8601 format with timezone (UTC).
+            Set by Parser, read-only for CRM.
+          example: "2025-11-11T12:34:56Z"
+          nullable: true
+      additionalProperties: false
+
+    ImportResponse:
+      type: object
+      required:
+        - status
+        - operation
+        - organization_id
+        - external_id
+      properties:
+        status:
+          type: string
+          enum:
+            - success
+          description: Operation status
+          example: "success"
+        operation:
+          type: string
+          enum:
+            - created
+            - updated
+            - skipped
+          description: |
+            Type of operation performed:
+            - **created**: New organization created
+            - **updated**: Existing organization updated
+            - **skipped**: No changes (data identical)
+          example: "created"
+        organization_id:
+          type: integer
+          description: CRM internal organization ID (auto-increment)
+          example: 123
+        external_id:
+          type: string
+          format: uuid
+          description: UUID v7 from request (for confirmation)
+          example: "01934c8e-7890-7abc-def0-123456789012"
+      additionalProperties: false
+
+    Error:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Error message
+          example: "Invalid JSON format"
+      additionalProperties: false
+
+    ValidationError:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: array
+          description: Array of validation errors
+          items:
+            type: object
+            required:
+              - loc
+              - msg
+              - type
+            properties:
+              loc:
+                type: array
+                description: Location of error in request body
+                items:
+                  oneOf:
+                    - type: string
+                    - type: integer
+                example: ["body", "external_id"]
+              msg:
+                type: string
+                description: Human-readable error message
+                example: "field required"
+              type:
+                type: string
+                description: Error type identifier
+                example: "value_error.missing"
+      additionalProperties: false

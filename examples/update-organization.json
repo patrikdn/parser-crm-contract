@@ -1,0 +1,31 @@
+{
+  "external_id": "01934c8e-7890-7abc-def0-123456789012",
+  "name": "Кафе Пушкин (обновленное)",
+  "category": "Кафе",
+  "address": "Москва, Тверской бульвар, 26А, стр. 1",
+  "district_id": 5,
+  "phones": [
+    "+7 495 123-45-67",
+    "+7 495 765-43-21",
+    "+7 495 999-88-77"
+  ],
+  "emails": [
+    "info@cafe-pushkin.ru",
+    "reservations@cafe-pushkin.ru",
+    "events@cafe-pushkin.ru"
+  ],
+  "website": "https://cafe-pushkin.ru",
+  "social_media": {
+    "instagram": "https://instagram.com/cafepushkin",
+    "vk": "https://vk.com/cafepushkin",
+    "facebook": "https://facebook.com/cafepushkin",
+    "telegram": "https://t.me/cafepushkin"
+  },
+  "yandex_url": "https://yandex.ru/maps/org/123456",
+  "rating": 4.8,
+  "review_count": 389,
+  "description": "Легендарное кафе в центре Москвы с русской кухней и атмосферой XIX века. Обновленный интерьер и новое меню.",
+  "working_hours": "Пн-Чт: 09:00-23:00, Пт-Вс: 09:00-01:00",
+  "partnership_status": "partner",
+  "last_synced_at": "2025-11-11T15:45:30Z"
+}
