@@ -6,6 +6,14 @@
 **Version:** 1.0.0 (not yet released)
 **Format:** OpenAPI 3.0.3
 
+## Repository
+
+- **GitHub:** https://github.com/patrikdn/parser-crm-contract.git
+- **Visibility:** 🌍 Public
+- **Branch:** main
+- **First Release:** 2025-11-13 (ab20d02)
+- **Clone:** `git clone https://github.com/patrikdn/parser-crm-contract.git`
+
 ## Overview
 
 This repository contains the **OpenAPI 3.0 specification** that defines the contract for synchronizing organization data from Parser to CRM. Both systems validate their data against this contract to ensure compatibility.
@@ -366,9 +374,9 @@ A: Version 1.0.0 supports single organization per request. Batch endpoint may be
 
 ## Support
 
-- **Issues**: GitHub Issues (when repository created)
-- **Discussions**: GitHub Discussions
-- **Email**: TBD
+- **Issues**: https://github.com/patrikdn/parser-crm-contract/issues
+- **Discussions**: https://github.com/patrikdn/parser-crm-contract/discussions
+- **Pull Requests**: https://github.com/patrikdn/parser-crm-contract/pulls
 
 ## License
 
@@ -376,5 +384,6 @@ TBD
 
 ## Related Repositories
 
-- **Parser**: https://github.com/patrikdn/parser.git
-- **CRM**: TBD (будет создан)
+- **Parser**: https://github.com/patrikdn/parser.git (Private, Production)
+- **CRM**: https://github.com/patrikdn/crm.git (Private, Design Phase)
+- **Ecosystem**: See parent directory `/Users/dpatrikeev/itisinteresting/CLAUDE.md`
